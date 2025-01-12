@@ -32,12 +32,14 @@
   "author": "alvamind",
   "license": "MIT",
   "dependencies": {
+    "@nats-io/jetstream": "^3.0.0-35",
     "@nats-io/kv": "^3.0.0-29",
+    "@nats-io/nats-core": "^3.0.0-48",
     "alvamind-tools": "^1.0.23",
     "logger-alvamind": "^1.0.5",
     "nats": "^2.29.1",
     "retry-util-alvamind": "^1.0.1",
-    "typescript": "^5.0.0",
+    "typescript": "^5.7.3",
     "uuid": "^11.0.5"
   },
   "devDependencies": {

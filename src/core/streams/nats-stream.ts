@@ -5,6 +5,10 @@ import {
   StreamInfo,
   StreamConfig,
   JetStreamPublishOptions,
+  AckPolicy,
+  DeliverPolicy,
+  ReplayPolicy,
+  ConsumerConfig
 } from 'nats';
 import { IStream } from './i-stream';
 import { StreamOptions } from './stream-options';
@@ -27,6 +31,9 @@ export class NatsStream implements IStream {
     private connection: IConnection,
     private options: StreamOptions
   ) {
+    if (!options.name || options.name.trim() === '') {
+      throw new NatsError(`Stream name cannot be empty`, 'STREAM_ERROR');
+    }
     this.js = this.connection.getNatsConnection().jetstream();
   }
 
@@ -48,7 +55,6 @@ export class NatsStream implements IStream {
       throw new NatsError(`Failed to initialize stream: ${error.message}`, 'STREAM_ERROR');
     }
   }
-
   async getStreamInfo(): Promise<StreamInfo> {
     if (!this.streamInfo) {
       this.streamInfo = await this.jsm.streams.info(this.options.name);
@@ -71,7 +77,20 @@ export class NatsStream implements IStream {
     if (!this.streamInfo) {
       throw new NatsError(`Stream ${this.options.name} is not initialized, can't subscribe`, 'STREAM_ERROR');
     }
-    const consumer = new NatsConsumer<T>(this.connection, subject, handler, options);
+
+    // Convert string values to enum values
+    const defaultOptions: ConsumerConfig = {
+      ack_policy: AckPolicy.Explicit,
+      deliver_policy: DeliverPolicy.All,
+      replay_policy: ReplayPolicy.Instant
+    };
+
+    const consumerOptions: ConsumerConfig = {
+      ...defaultOptions,
+      ...options,
+    };
+
+    const consumer = new NatsConsumer<T>(this.connection, subject, handler, consumerOptions);
     await consumer.consume();
     return consumer;
   }

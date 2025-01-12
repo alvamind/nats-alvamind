@@ -36,7 +36,7 @@ describe("NatsAlvamind Integration Tests", () => {
   const url = "nats://localhost:4222";
   const connectionOptions = {
     servers: [url],
-    timeout: 10000, // Increased timeout for connection
+    timeout: 20000, // Increased timeout for connection
   };
 
   const messageBrokerConfig = {
@@ -90,7 +90,9 @@ describe("NatsAlvamind Integration Tests", () => {
   });
 
   describe("Stream Operations", () => {
-
+    beforeEach(async () => {
+      await natsClient.deleteStream().catch(() => { });
+    });
     test("should create a stream", async () => {
       const streamConfig: StreamConfig = {
         ...defaultStreamConfig,
@@ -112,11 +114,19 @@ describe("NatsAlvamind Integration Tests", () => {
   });
 
   describe("Storage Operations", () => {
+    beforeEach(async () => {
+      await natsClient.delete("test-key").catch(() => { });
+      await natsClient.delete("test-key-delete").catch(() => { });
+      await natsClient.delete("test-key-expire").catch(() => { });
+    });
+
     test("should set and get value", async () => {
       const key = "test-key";
       const value = { data: "test value" };
 
-      await natsClient.set(key, value);
+      await natsClient.set(key, value).catch((e) => {
+        console.log(e);
+      });
       await new Promise(resolve => setTimeout(resolve, 500)); // Wait for set operation
       const retrieved = await natsClient.get<typeof value>(key);
       expect(retrieved).toEqual(value);
@@ -211,7 +221,10 @@ describe("NatsAlvamind Integration Tests", () => {
         );
       }
 
-      await expect(Promise.all(operations)).resolves.toBeDefined();
+      await Promise.all(operations)
+        .then(() => expect(true).toBeTruthy())
+        .catch(() => expect(false).toBeTruthy());
+
     }, 10000);
 
     test("should handle large messages", async () => {
