@@ -1,5 +1,4 @@
-// nats-alvamind/src/core/connection/nats-connection.ts
-import { connect, NatsConnection } from 'nats';
+import { connect, NatsConnection, JetStreamClient, JetStreamManager } from 'nats';
 import { IConnection } from './i-connection';
 import { ConnectionOptions } from './connection-options';
 import { NatsError } from '../errors/nats-error';
@@ -50,5 +49,17 @@ export class NatsConnectionImpl implements IConnection {
   }
   isConnectedToNats(): boolean {
     return this.isConnected;
+  }
+  jetStream(): JetStreamClient {
+    if (!this.connection) {
+      throw new NatsError('NATS connection is not established', 'CONNECTION_ERROR');
+    }
+    return this.connection.jetstream();
+  }
+  async jetStreamManager(): Promise<JetStreamManager> {
+    if (!this.connection) {
+      throw new NatsError('NATS connection is not established', 'CONNECTION_ERROR');
+    }
+    return this.connection.jetstreamManager();
   }
 }

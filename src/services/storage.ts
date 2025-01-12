@@ -1,4 +1,3 @@
-// nats-alvamind/src/services/storage.ts
 import { IConnection } from '../core/connection/i-connection';
 import { IKV } from '../core/kv/i-kv';
 import { NatsKV } from '../core/kv/nats-kv';
@@ -11,8 +10,8 @@ export class Storage {
   ) { }
   private async getKV(): Promise<IKV<any>> {
     if (!this.kv) {
-      this.kv = new NatsKV(this.connection, { bucketName: this.config.bucketName })
-      await (this.kv as NatsKV<any>).init();
+      this.kv = new NatsKV(this.connection)
+      await (this.kv as NatsKV<any>).init(this.config.bucketName);
     }
     return this.kv;
   }
