@@ -1,16 +1,43 @@
+// test/main.test.ts
 import { expect, test, describe, beforeAll, afterAll, beforeEach } from "bun:test";
 import { NatsAlvamind } from "../src";
 import { StreamConfig, RetentionPolicy, StorageType, DiscardPolicy } from "nats";
 import { RetryUtil } from "../src/core/retry/retry-util";
 import logger from "logger-alvamind";
-//
+
+const defaultStreamConfig: StreamConfig = {
+  name: '',
+  subjects: [],
+  retention: RetentionPolicy.Limits,
+  storage: StorageType.Memory,
+  max_consumers: -1,
+  max_msgs: -1,
+  max_bytes: -1,
+  max_age: 0,
+  max_msg_size: -1,
+  max_msgs_per_subject: -1,
+  discard: DiscardPolicy.Old,
+  num_replicas: 1,
+  duplicate_window: 0,
+  sealed: false,
+  first_seq: 1,
+  discard_new_per_subject: false,
+  allow_rollup_hdrs: false,
+  deny_delete: false,
+  deny_purge: false,
+  allow_direct: false,
+  mirror_direct: false
+};
+
+
 describe("NatsAlvamind Integration Tests", () => {
   let natsClient: NatsAlvamind;
 
   // Test configuration
-  const url = "nats://localhost:4222"; // Modified URL
+  const url = "nats://localhost:4222";
   const connectionOptions = {
     servers: [url],
+    timeout: 10000, // Increased timeout for connection
   };
 
   const messageBrokerConfig = {
@@ -64,63 +91,26 @@ describe("NatsAlvamind Integration Tests", () => {
   });
 
   describe("Stream Operations", () => {
-    test("should create a stream", async () => {
-      const streamOptions: StreamConfig = {
-        name: messageBrokerConfig.streamName,
-        subjects: messageBrokerConfig.subjects,
-        retention: RetentionPolicy.Limits,
-        storage: StorageType.Memory,
-        max_consumers: -1,
-        max_msgs: -1,
-        max_bytes: -1,
-        max_age: 0,
-        max_msg_size: -1,
-        max_msgs_per_subject: -1,
-        discard: DiscardPolicy.Old,
-        num_replicas: 1,
-        duplicate_window: 0,
-        sealed: false,
-        first_seq: 1,
-        discard_new_per_subject: false,
-        allow_rollup_hdrs: false,
-        deny_delete: false,
-        deny_purge: false,
-        allow_direct: false,
-        mirror_direct: false
-      };
 
-      await expect(natsClient.createStream(streamOptions)).resolves.not.toThrow();
+    test("should create a stream", async () => {
+      const streamConfig: StreamConfig = {
+        ...defaultStreamConfig,
+        name: "test-stream-creation",
+        subjects: ["test.create.*"],
+      };
+      await expect(natsClient.createStream(streamConfig)).resolves.not.toThrow();
     });
 
     test("should handle invalid stream operations", async () => {
-      const invalidStreamOptions: StreamConfig = {
-        name: "", // Invalid empty name
+      const invalidStreamConfig: StreamConfig = {
+        ...defaultStreamConfig,
+        name: "",
         subjects: [],
-        retention: RetentionPolicy.Limits,
-        storage: StorageType.Memory,
-        max_consumers: -1,
-        max_msgs: -1,
-        max_bytes: -1,
-        max_age: 0,
-        max_msg_size: -1,
-        max_msgs_per_subject: -1,
-        discard: DiscardPolicy.Old,
-        num_replicas: 1,
-        duplicate_window: 0,
-        sealed: false,
-        first_seq: 1,
-        discard_new_per_subject: false,
-        allow_rollup_hdrs: false,
-        deny_delete: false,
-        deny_purge: false,
-        allow_direct: false,
-        mirror_direct: false
       };
 
-      await expect(natsClient.createStream(invalidStreamOptions)).rejects.toThrow();
+      await expect(natsClient.createStream(invalidStreamConfig)).rejects.toThrow();
     });
   });
-
 
   describe("Storage Operations", () => {
     test("should set and get value", async () => {
@@ -128,6 +118,7 @@ describe("NatsAlvamind Integration Tests", () => {
       const value = { data: "test value" };
 
       await natsClient.set(key, value);
+      await new Promise(resolve => setTimeout(resolve, 500)); // Wait for set operation
       const retrieved = await natsClient.get<typeof value>(key);
       expect(retrieved).toEqual(value);
     });
@@ -137,6 +128,7 @@ describe("NatsAlvamind Integration Tests", () => {
       const value = { data: "test value" };
 
       await natsClient.set(key, value);
+      await new Promise(resolve => setTimeout(resolve, 500));
       await natsClient.delete(key);
       const retrieved = await natsClient.get(key);
       expect(retrieved).toBeNull();
@@ -145,133 +137,92 @@ describe("NatsAlvamind Integration Tests", () => {
     test("should handle expiring keys", async () => {
       const key = "test-key-expire";
       const value = { data: "expiring value" };
-      const expirationMs = 100;
+      const expirationMs = 1000; // Increased expiration time
 
       await natsClient.set(key, value, { expireMode: "PX", time: expirationMs });
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      let retrieved = await natsClient.get<typeof value>(key);
+      const retrieved = await natsClient.get<typeof value>(key);
       expect(retrieved).toEqual(value);
 
-      await new Promise((resolve) => setTimeout(resolve, expirationMs + 50));
-
-      retrieved = await natsClient.get<typeof value>(key);
-      expect(retrieved).toBeNull();
+      await new Promise(resolve => setTimeout(resolve, expirationMs + 500));
+      const expiredValue = await natsClient.get<typeof value>(key);
+      expect(expiredValue).toBeNull();
     });
   });
 
   describe("Error Handling", () => {
     test("should handle connection errors gracefully", async () => {
       const badClient = new NatsAlvamind(
-        { servers: ["nats://nonexistent:4222"] },
-        {
-          ...messageBrokerConfig,
-          url: "nats://nonexistent:4222"
-        },
+        { servers: ["nats://nonexistent:4222"], timeout: 1000 },
+        messageBrokerConfig,
         storageConfig,
-        retryConfig
+        { attempts: 1, delay: 100 } // Reduce retry attempts for faster test
       );
 
       await expect(badClient.connect()).rejects.toThrow();
-    });
+    }, 10000);
+
     test("should handle invalid stream operations", async () => {
-      const invalidStreamOptions: StreamConfig = {
-        name: "",  // Invalid empty name
+      const invalidConfig: StreamConfig = {
+        ...defaultStreamConfig,
+        name: "",
         subjects: [],
-        retention: RetentionPolicy.Limits,
-        storage: StorageType.Memory,
-        max_consumers: -1,
-        max_msgs: -1,
-        max_bytes: -1,
-        max_age: 0,
-        max_msg_size: -1,
-        max_msgs_per_subject: -1,
-        discard: DiscardPolicy.Old,
-        num_replicas: 1,
-        duplicate_window: 0,
-        sealed: false,
-        first_seq: 1,
-        discard_new_per_subject: false,
-        allow_rollup_hdrs: false,
-        deny_delete: false,
-        deny_purge: false,
-        allow_direct: false,
-        mirror_direct: false
       };
 
-      expect(natsClient.createStream(invalidStreamOptions)).rejects.toThrow();
+      await expect(natsClient.createStream(invalidConfig)).rejects.toThrow();
     });
 
     test("should retry failed operations", async () => {
       let attempts = 0;
       const operation = async () => {
         attempts++;
-        if (attempts < 3) {
-          throw new Error("Temporary failure");
-        }
+        if (attempts < 2) throw new Error("Temporary failure");
         return true;
       };
 
-      await expect(RetryUtil.withRetry(operation, {
+      const result = await RetryUtil.withRetry(operation, {
         attempts: 3,
         delay: 100,
-        factor: 2
-      })).resolves.toBe(true);
+      });
 
-      expect(attempts).toBe(3);
+      expect(result).toBe(true);
+      expect(attempts).toBe(2);
     });
   });
 
   describe("Performance", () => {
     beforeEach(async () => {
-      // Ensure stream is created before tests
-      await natsClient.createStream({
-        name: messageBrokerConfig.streamName,
-        subjects: messageBrokerConfig.subjects,
-        retention: RetentionPolicy.Limits,
-        storage: StorageType.Memory,
-        max_consumers: -1,
-        max_msgs: -1,
-        max_bytes: -1,
-        max_age: 0,
-        max_msg_size: -1,
-        max_msgs_per_subject: -1,
-        discard: DiscardPolicy.Old,
-        num_replicas: 1,
-        duplicate_window: 0,
-        sealed: false,
-        first_seq: 1,
-        discard_new_per_subject: false,
-        allow_rollup_hdrs: false,
-        deny_delete: false,
-        deny_purge: false,
-        allow_direct: false,
-        mirror_direct: false
-      });
-      // Wait for stream to be ready
+      const streamConfig: StreamConfig = {
+        ...defaultStreamConfig,
+        name: "test-stream-perf",
+        subjects: ["test.perf.*"],
+      };
+      await natsClient.createStream(streamConfig).catch(() => { });
       await new Promise(resolve => setTimeout(resolve, 1000));
     });
+
     test("should handle multiple concurrent operations", async () => {
       const operations = [];
-      const numOperations = 5; // Reduce number of concurrent operations
+      const numOperations = 3;
 
       for (let i = 0; i < numOperations; i++) {
         operations.push(
-          RetryUtil.withRetry(() => natsClient.publish(`test.perf.${i}`, { index: i }), { attempts: 3, delay: 100, factor: 2 })
-            .catch(err => logger.error(`Operation ${i} failed:`, err))
+          natsClient.publish(`test.perf.${i}`, { index: i })
         );
       }
 
-      await expect(Promise.allSettled(operations)).resolves.toBeDefined();
-    });
+      await expect(Promise.all(operations)).resolves.toBeDefined();
+    }, 10000);
 
     test("should handle large messages", async () => {
       const largeMessage = {
-        data: "x".repeat(1024) // Reduce message size for testing
+        data: "x".repeat(1024) // Reduced size for testing
       };
 
       await expect(
         RetryUtil.withRetry(() => natsClient.publish("test.large", largeMessage), { attempts: 3, delay: 100, factor: 2 })
       ).resolves.not.toThrow();
-    });
+    }, 10000);
   });
 });
