@@ -1,7 +1,7 @@
 {
   "name": "nats-alvamind",
-  "version": "1.0.0",
-  "description": "A flexible RPC library using NATS",
+  "version": "1.0.1",
+  "description": "a powerful and flexible Node.js library designed to simplify interactions with NATS.io, offering seamless integration for message queuing, stream processing, and key-value storage.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "repository": {
@@ -15,7 +15,7 @@
     "compose": "docker compose up -d",
     "commit": "commit",
     "reinstall": "bun clean && bun install",
-    "build": "tsc -p tsconfig.build.json && chmod +x dist/generate-services.js",
+    "build": "tsc -p tsconfig.build.json",
     "source": "generate-source --exclude=**/dist/**,.gitignore,bun.lockb,*md,*.test.ts --output=source.md",
     "clean": "clean",
     "build:tgz": "bun run build && bun pm pack",
