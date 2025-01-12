@@ -1,4 +1,3 @@
-// nats-alvamind/src/core/kv/nats-kv.ts
 import { Kvm, KV } from '@nats-io/kv';
 import { IKV } from './i-kv';
 import { KVOptions } from './kv-options';
@@ -7,6 +6,15 @@ import { IConnection } from '../connection/i-connection';
 import { CodecFactory } from '../codecs/codec-factory';
 import { logger } from '../../utils/logger';
 import { RetryUtil } from '../retry/retry-util';
+import { jetstream } from '@nats-io/jetstream';
+import { NatsConnection as CoreNatsConnection } from '@nats-io/nats-core'
+
+interface DecodedKvEntry<T> {
+  key: string;
+  value: T | null;
+  created: Date;
+  modified: Date;
+}
 
 // src/core/kv/nats-kv.ts
 export class NatsKV<T> implements IKV<T> {
@@ -14,17 +22,21 @@ export class NatsKV<T> implements IKV<T> {
   private kvm: Kvm;
   private codec = CodecFactory.create<T>('json');
   private initialized = false; // Initialization Flag
+  private kvWatch: any = null;
+
   constructor(
     private connection: IConnection,
     private options: KVOptions
   ) {
-    this.kvm = new Kvm(this.connection.getNatsConnection() as any);
+    const nc = this.connection.getNatsConnection() as CoreNatsConnection
+    const js = jetstream(nc, { timeout: 10_000 });
+    this.kvm = new Kvm(js as any);
   }
   async init(): Promise<void> {
     if (this.initialized) return;
+
     return RetryUtil.withRetry(async () => {
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
         this.kv = await this.kvm.open(this.options.bucketName)
           .catch(async () => {
             return await this.kvm.create(this.options.bucketName);
@@ -55,20 +67,19 @@ export class NatsKV<T> implements IKV<T> {
       }
     });
   }
-  async set(key: string, value: T, options?: Record<string, any>): Promise<void> {
+  async set(key: string, value: T, options?: { expireMode?: 'PX', time?: number }): Promise<void> {
     await this.ensureInitialized();
     return RetryUtil.withRetry(async () => {
       try {
         await this.kv.put(key, this.codec.encode(value));
-        if (options && options['expireMode'] === 'PX' && options['time']) {
-          setTimeout(() => this.delete(key), options['time'] as number);
+        if (options && options.expireMode === 'PX' && options.time) {
+          setTimeout(() => this.delete(key), options.time);
         }
       } catch (error: any) {
         logger.error(`Failed to set value for key ${key}`, error);
         throw new NatsError(`Failed to set value for key ${key}: ${error.message}`, 'KV_ERROR', error);
       }
     });
-
   }
   async delete(key: string): Promise<void> {
     await this.ensureInitialized();
@@ -79,6 +90,26 @@ export class NatsKV<T> implements IKV<T> {
         logger.error(`Failed to delete key ${key}`, error);
         throw new NatsError(`Failed to delete key ${key}: ${error.message}`, 'KV_ERROR', error);
       }
+    });
+  }
+
+  async watch(onEntry: (entry: DecodedKvEntry<T>) => void, keys?: string[]): Promise<void> {
+    await this.ensureInitialized();
+    if (this.kvWatch) {
+      this.kvWatch.stop();
+    }
+    this.kvWatch = await this.kv.watch(keys ? { key: keys } : undefined);
+    (async () => {
+      for await (const entry of this.kvWatch!) {
+        onEntry({
+          key: entry.key,
+          value: entry.value instanceof Uint8Array ? this.codec.decode(entry.value) : null,
+          created: entry.created,
+          modified: entry.modified,
+        });
+      }
+    })().catch((error) => {
+      logger.error("Error in watch iterator", error);
     });
   }
 }

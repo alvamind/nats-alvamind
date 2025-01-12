@@ -3,7 +3,6 @@ import { expect, test, describe, beforeAll, afterAll, beforeEach } from "bun:tes
 import { NatsAlvamind } from "../src";
 import { StreamConfig, RetentionPolicy, StorageType, DiscardPolicy } from "nats";
 import { RetryUtil } from "../src/core/retry/retry-util";
-import logger from "logger-alvamind";
 
 const defaultStreamConfig: StreamConfig = {
   name: '',
