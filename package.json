@@ -1,0 +1,53 @@
+{
+  "name": "nats-alvamind",
+  "version": "1.0.0",
+  "description": "A flexible RPC library using NATS",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alvamind/nats-alvamind.git"
+  },
+  "scripts": {
+    "format": "prettier --write \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "dev": "bun tsc --watch",
+    "compose": "docker compose up -d",
+    "commit": "commit",
+    "reinstall": "bun clean && bun install",
+    "build": "tsc -p tsconfig.build.json && chmod +x dist/generate-services.js",
+    "source": "generate-source --exclude=**/dist/**,.gitignore,bun.lockb,*md,*.test.ts --output=source.md",
+    "clean": "clean",
+    "build:tgz": "bun run build && bun pm pack",
+    "test": "bun test test/*.test.ts",
+    "split-code": "split-code source=combined.md markers=nats-alvamind/ outputDir=./output",
+    "publish-npm": "publish-npm patch"
+  },
+  "keywords": [
+    "rpc",
+    "nats",
+    "typescript",
+    "microservices"
+  ],
+  "author": "alvamind",
+  "license": "MIT",
+  "dependencies": {
+    "@nats-io/kv": "^3.0.0-29",
+    "alvamind-tools": "^1.0.23",
+    "logger-alvamind": "^1.0.5",
+    "nats": "^2.29.1",
+    "retry-util-alvamind": "^1.0.1",
+    "typescript": "^5.0.0",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.16",
+    "bun-types": "^1.1.43"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

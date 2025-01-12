@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  nats:
+    image: nats:latest
+    ports:
+      - '4222:4222' # Client connections
+      - '8222:8222' # HTTP monitoring port
+    volumes:
+      - ./nats.conf:/nats.conf # Mount the configuration file
+    command:
+      - '-c' # Specify the configuration file
+      - '/nats.conf'
+    container_name: nats-test
+    restart: always
