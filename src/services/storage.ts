@@ -2,6 +2,8 @@ import { IConnection } from '../core/connection/i-connection';
 import { IKV } from '../core/kv/i-kv';
 import { NatsKV } from '../core/kv/nats-kv';
 import { StorageConfig } from '../config/storage-config';
+import { KvEntry } from 'nats';
+
 export class Storage {
   private kv: IKV<any> | null = null;
   constructor(
@@ -26,5 +28,20 @@ export class Storage {
   async delete(key: string): Promise<void> {
     const kv = await this.getKV();
     return kv.delete(key);
+  }
+
+  async keys(key?: string): Promise<AsyncIterable<string>> {
+    const kv = await this.getKV();
+    return kv.keys(key);
+  }
+
+  async history(key: string, headersOnly?: boolean): Promise<AsyncIterable<KvEntry>> {
+    const kv = await this.getKV();
+    return kv.history(key, headersOnly);
+  }
+
+  async watch(key?: string, headersOnly?: boolean, initializedFn?: () => void): Promise<AsyncIterable<KvEntry>> {
+    const kv = await this.getKV();
+    return kv.watch(key, headersOnly, initializedFn);
   }
 }

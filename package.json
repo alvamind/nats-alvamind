@@ -1,6 +1,6 @@
 {
   "name": "nats-alvamind",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "a powerful and flexible Node.js library designed to simplify interactions with NATS.io, offering seamless integration for message queuing, stream processing, and key-value storage.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

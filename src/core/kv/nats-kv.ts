@@ -1,4 +1,4 @@
-import { JetStreamClient, JetStreamManager, KV } from 'nats';
+import { JetStreamClient, JetStreamManager, KV, KvEntry, KvWatchOptions } from 'nats';
 import { IConnection } from '../connection/i-connection';
 import { CodecFactory } from '../codecs/codec-factory';
 import { logger } from '../../utils/logger';
@@ -10,18 +10,15 @@ export class NatsKV<T> implements IKV<T> {
   private codec = CodecFactory.create<T>('json');
   private jsm!: JetStreamManager;
   private bucketName: string
-
   constructor(private connection: IConnection) {
     this.bucketName = '';
   }
-
   async init(bucket: string): Promise<void> {
     this.bucketName = bucket;
     this.jsm = await this.connection.jetStreamManager();
     const js: JetStreamClient = this.jsm.jetstream();
     this.kv = await js.views.kv(bucket);
   }
-
   async get(key: string): Promise<T | null> {
     try {
       const entry = await this.kv.get(key);
@@ -34,7 +31,6 @@ export class NatsKV<T> implements IKV<T> {
       throw error;
     }
   }
-
   async set(key: string, value: T): Promise<void> {
     try {
       const encodedValue = this.codec.encode(value);
@@ -44,7 +40,6 @@ export class NatsKV<T> implements IKV<T> {
       throw error;
     }
   }
-
   async delete(key: string): Promise<void> {
     try {
       await this.kv.delete(key);
@@ -64,8 +59,6 @@ export class NatsKV<T> implements IKV<T> {
       throw new NatsError(`Failed to purge KV store: ${error.message}`, 'KV_ERROR', error);
     }
   }
-
-
   async deleteBucket(): Promise<void> {
     try {
       await this.jsm.streams.delete(this.bucketName);
@@ -73,6 +66,36 @@ export class NatsKV<T> implements IKV<T> {
     } catch (error: any) {
       logger.error(`Failed to delete KV store`, error);
       throw new NatsError(`Failed to delete KV store: ${error.message}`, 'KV_ERROR', error);
+    }
+  }
+  async keys(key: string = '>'): Promise<AsyncIterable<string>> {
+    try {
+      return this.kv.keys(key)
+    } catch (error: any) {
+      logger.error(`Failed to get keys:`, error);
+      throw new NatsError(`Failed to get keys: ${error.message}`, 'KV_ERROR', error)
+    }
+  }
+
+  async history(key: string): Promise<AsyncIterable<KvEntry>> {
+    try {
+      return this.kv.history({ key: key });
+    } catch (error: any) {
+      logger.error(`Failed to get history:`, error);
+      throw new NatsError(`Failed to get history: ${error.message}`, 'KV_ERROR', error);
+    }
+  }
+
+  async watch(key?: string, headersOnly: boolean = false, initializedFn?: () => void): Promise<AsyncIterable<KvEntry>> {
+    try {
+      const opts: KvWatchOptions = {}
+      if (key) opts.key = key;
+      if (headersOnly) opts.headers_only = headersOnly;
+      if (initializedFn) opts.initializedFn = initializedFn;
+      return this.kv.watch(opts)
+    } catch (error: any) {
+      logger.error(`Failed to watch key:`, error);
+      throw new NatsError(`Failed to watch key: ${error.message}`, 'KV_ERROR', error);
     }
   }
 }

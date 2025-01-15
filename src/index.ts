@@ -9,6 +9,7 @@ import { RetryConfig } from './config/retry-config';
 import { StreamOptions } from './core/streams/stream-options';
 import { MessageHandler } from './interfaces/message-handler';
 import { IConsumer } from './core/consumers/i-consumer';
+import { KvEntry } from 'nats';
 
 type ServiceType = {
   messageBroker: MessageBroker;
@@ -80,6 +81,16 @@ export class NatsAlvamind {
     return this.ensureConnected('storage').set(key, value, options);
   }
 
+  async keys(key?: string): Promise<AsyncIterable<string>> {
+    return this.ensureConnected('storage').keys(key);
+  }
+  async history(key: string, headersOnly?: boolean): Promise<AsyncIterable<KvEntry>> {
+    return this.ensureConnected('storage').history(key, headersOnly);
+  }
+
+  async watch(key?: string, headersOnly?: boolean, initializedFn?: () => void): Promise<AsyncIterable<KvEntry>> {
+    return this.ensureConnected('storage').watch(key, headersOnly, initializedFn);
+  }
   async delete(key: string): Promise<void> {
     return this.ensureConnected('storage').delete(key);
   }
